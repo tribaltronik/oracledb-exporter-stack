@@ -75,7 +75,6 @@ Located at `ansible/roles/oracledb_exporter/`:
 ├── Makefile                    # Orchestration targets
 ├── healthcheck.sql             # Oracle healthcheck query
 ├── ubi9/Dockerfile             # Minimal SSH-only UBI9 image
-├── scripts/run_exporter.sh     # Nohup wrapper script
 └── ansible/
     ├── playbook.yml            # Ansible playbook
     └── roles/oracledb_exporter/ # Ansible role
