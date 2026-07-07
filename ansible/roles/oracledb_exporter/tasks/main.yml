@@ -1,0 +1,134 @@
+---
+- name: Install prerequisites
+  dnf:
+    name:
+      - tar
+      - gzip
+      - procps-ng
+      - libaio
+    state: present
+
+- name: Install Oracle Instant Client Basic
+  dnf:
+    name: https://download.oracle.com/otn_software/linux/instantclient/oracle-instantclient-basic-linuxx64.rpm
+    state: present
+    disable_gpg_check: yes
+
+- name: Configure Oracle library path
+  shell: echo /usr/lib/oracle/*/client64/lib > /etc/ld.so.conf.d/oracle-instantclient.conf
+
+- name: Update ldconfig cache
+  command: ldconfig
+
+- name: Create exporter group
+  group:
+    name: "{{ exporter_group }}"
+    system: yes
+    state: present
+
+- name: Create exporter system user
+  user:
+    name: "{{ exporter_user }}"
+    group: "{{ exporter_group }}"
+    shell: /sbin/nologin
+    system: yes
+    create_home: no
+    state: present
+
+- name: Create exporter directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ exporter_user }}"
+    group: "{{ exporter_group }}"
+    mode: 0750
+  loop:
+    - "{{ exporter_home }}"
+    - "{{ exporter_config_dir }}"
+    - "{{ exporter_log_dir }}"
+
+- name: Download oracledb_exporter archive
+  get_url:
+    url: "{{ oracle_exporter_url }}"
+    dest: "/tmp/{{ oracle_exporter_binary }}"
+    mode: 0640
+
+- name: Extract oracledb_exporter
+  unarchive:
+    src: "/tmp/{{ oracle_exporter_binary }}"
+    dest: "{{ exporter_home }}"
+    remote_src: yes
+    creates: "{{ exporter_home }}/oracledb_exporter-{{ oracle_exporter_version }}.linux-amd64/oracledb_exporter"
+
+- name: Install oracledb_exporter binary
+  copy:
+    src: "{{ exporter_home }}/oracledb_exporter-{{ oracle_exporter_version }}.linux-amd64/oracledb_exporter"
+    dest: "{{ exporter_bin_dir }}/oracledb_exporter"
+    owner: root
+    group: root
+    mode: 0755
+    remote_src: yes
+
+- name: Deploy nohup wrapper script
+  template:
+    src: run_exporter.sh.j2
+    dest: "{{ exporter_bin_dir }}/run_exporter.sh"
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Set environment variables in /etc/profile.d
+  template:
+    src: oracle_exporter.sh.j2
+    dest: /etc/profile.d/oracle_exporter.sh
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Create systemd service file
+  template:
+    src: oracledb_exporter.service.j2
+    dest: /etc/systemd/system/oracledb_exporter.service
+    owner: root
+    group: root
+    mode: 0644
+  when: ansible_service_mgr == "systemd"
+
+- name: Enable and start exporter service
+  systemd:
+    name: oracledb_exporter
+    enabled: yes
+    state: started
+    daemon_reload: yes
+  when: ansible_service_mgr == "systemd"
+
+- name: Start exporter via nohup (non-systemd)
+  shell: |
+    . /etc/profile.d/oracle_exporter.sh
+    nohup {{ exporter_bin_dir }}/oracledb_exporter \
+      --log.level error \
+      --web.listen-address {{ exporter_listen_address }} \
+      >> {{ exporter_log_dir }}/exporter.log 2>&1 &
+    echo $! > {{ exporter_pid_file }}
+  args:
+    creates: "{{ exporter_pid_file }}"
+  when: ansible_service_mgr != "systemd"
+
+- name: Wait for exporter to start
+  wait_for:
+    port: "{{ exporter_port }}"
+    host: "{{ exporter_listen_address.split(':')[0] }}"
+    delay: 3
+    timeout: 30
+
+- name: Verify exporter metrics endpoint
+  uri:
+    url: "http://127.0.0.1:{{ exporter_port }}/metrics"
+    return_content: yes
+  register: metrics_response
+  failed_when: "'oracledb_up' not in metrics_response.content"
+
+- name: Cleanup downloaded archive
+  file:
+    path: "/tmp/{{ oracle_exporter_binary }}"
+    state: absent

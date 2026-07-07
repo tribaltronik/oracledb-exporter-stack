@@ -1,0 +1,7 @@
+*.tar.gz
+*.log
+/tmp/
+/.ansible/
+__pycache__/
+*.pyc
+.vault_password
