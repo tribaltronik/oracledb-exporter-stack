@@ -81,6 +81,4 @@ Located at `ansible/roles/oracledb_exporter/`:
     └── roles/oracledb_exporter/ # Ansible role
 ```
 
-## Environment
 
-If `DOCKER_HOST` points to Colima (inactive), the Makefile automatically unsets it for all recipe commands via `unexport DOCKER_HOST`.
