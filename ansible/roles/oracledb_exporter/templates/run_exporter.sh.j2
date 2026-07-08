@@ -11,6 +11,7 @@ echo "Starting oracledb_exporter v{{ oracle_exporter_version }} at $(date)" | te
 echo "DB_CONNECT_STRING=${DB_CONNECT_STRING}" | tee -a "$LOG_FILE"
 
 nohup $BINARY \
+    --default.metrics {{ exporter_config_dir }}/default-metrics.toml \
     --log.level error \
     --web.listen-address "$LISTEN_ADDRESS" \
     >> "$LOG_FILE" 2>&1 &

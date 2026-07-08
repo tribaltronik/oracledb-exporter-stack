@@ -10,3 +10,4 @@
         oracle_db_service: XEPDB1
         oracle_db_user: oracledb_exporter
         oracle_db_password: exporter_pass
+        oracle_admin_password: SysPassword1

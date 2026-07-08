@@ -16,6 +16,7 @@ services:
       start_period: 60s
     volumes:
       - ./healthcheck.sql:/healthcheck.sql
+      - ./init-grants.sql:/container-entrypoint-startdb.d/init-grants.sql
       - oracle_data:/opt/oracle/oradata
     networks:
       - oracle-net

@@ -1,3 +1,8 @@
+oracle_instantclient_version: "21.11.0.0.0-1"
+oracle_instantclient_dir: "2111000"
+oracle_instantclient_url: "https://download.oracle.com/otn_software/linux/instantclient/{{ oracle_instantclient_dir }}/oracle-instantclient-basic-{{ oracle_instantclient_version }}.el8.x86_64.rpm"
+oracle_instantclient_permanent_url: "https://download.oracle.com/otn_software/linux/instantclient/oracle-instantclient-basic-linuxx64.rpm"
+
 oracle_exporter_version: "1.6.0"
 oracle_exporter_binary: "oracledb_exporter-{{ oracle_exporter_version }}.linux-amd64.tar.gz"
 oracle_exporter_url: "https://github.com/oracle/oracle-db-appdev-monitoring/releases/download/{{ oracle_exporter_version }}/{{ oracle_exporter_binary }}"
@@ -18,3 +23,4 @@ oracle_db_port: 1521
 oracle_db_service: XEPDB1
 oracle_db_user: system
 oracle_db_password: ""
+oracle_admin_password: "SysPassword1"

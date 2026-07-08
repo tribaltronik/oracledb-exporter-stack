@@ -12,6 +12,7 @@ Environment=DB_PASSWORD={{ oracle_db_password }}
 Environment=DB_CONNECT_STRING={{ oracle_db_host }}:{{ oracle_db_port }}/{{ oracle_db_service }}
 Environment=NLS_LANG=AMERICAN_AMERICA.AL32UTF8
 ExecStart={{ exporter_bin_dir }}/oracledb_exporter \
+    --default.metrics {{ exporter_config_dir }}/default-metrics.toml \
     --log.level error \
     --web.listen-address {{ exporter_listen_address }}
 ExecReload=/bin/kill -HUP $MAINPID

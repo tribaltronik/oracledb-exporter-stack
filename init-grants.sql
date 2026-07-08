@@ -1,0 +1,1 @@
+GRANT SELECT ANY DICTIONARY TO oracledb_exporter;
