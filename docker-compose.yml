@@ -21,6 +21,28 @@ services:
     networks:
       - oracle-net
 
+  oracle-xe-2:
+    image: gvenzl/oracle-xe:21-slim-faststart
+    container_name: oracle-xe-2
+    ports:
+      - "1522:1521"
+    environment:
+      ORACLE_PASSWORD: SysPassword2
+      APP_USER: oracledb_exporter2
+      APP_USER_PASSWORD: exporter_pass2
+    healthcheck:
+      test: ["CMD", "sqlplus", "-L", "system/SysPassword2@//localhost/XEPDB1", "@/healthcheck.sql"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    volumes:
+      - ./healthcheck.sql:/healthcheck.sql
+      - ./init-grants2.sql:/container-entrypoint-startdb.d/init-grants2.sql
+      - oracle_data_2:/opt/oracle/oradata
+    networks:
+      - oracle-net
+
   ubi9-target:
     build:
       context: .
@@ -29,14 +51,18 @@ services:
     ports:
       - "2222:22"
       - "9161:9161"
+      - "9162:9162"
     depends_on:
       oracle-xe:
+        condition: service_healthy
+      oracle-xe-2:
         condition: service_healthy
     networks:
       - oracle-net
 
 volumes:
   oracle_data:
+  oracle_data_2:
 
 networks:
   oracle-net:

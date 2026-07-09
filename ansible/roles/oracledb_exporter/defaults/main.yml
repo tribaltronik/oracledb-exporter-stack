@@ -8,7 +8,6 @@ oracle_exporter_binary: "oracledb_exporter-{{ oracle_exporter_version }}.linux-a
 oracle_exporter_url: "https://github.com/oracle/oracle-db-appdev-monitoring/releases/download/{{ oracle_exporter_version }}/{{ oracle_exporter_binary }}"
 
 exporter_port: 9161
-exporter_listen_address: "0.0.0.0:{{ exporter_port }}"
 exporter_user: oracledb_exporter
 exporter_group: oracledb_exporter
 
@@ -16,11 +15,23 @@ exporter_home: /opt/oracledb_exporter
 exporter_bin_dir: /usr/local/bin
 exporter_config_dir: /etc/oracledb_exporter
 exporter_log_dir: /var/log/oracledb_exporter
-exporter_pid_file: /var/run/oracledb_exporter.pid
+exporter_pid_dir: /var/run
+exporter_listen: 0.0.0.0
 
-oracle_db_host: localhost
-oracle_db_port: 1521
-oracle_db_service: XEPDB1
-oracle_db_user: system
-oracle_db_password: ""
-oracle_admin_password: "SysPassword1"
+oracle_exporter_instances:
+  - name: xe1
+    db_host: localhost
+    db_port: 1521
+    db_service: XEPDB1
+    db_user: system
+    db_password: ""
+    exporter_port: "{{ exporter_port }}"
+    admin_password: ""
+
+# Backward-compat aliases (first instance)
+oracle_db_host: "{{ oracle_exporter_instances[0].db_host }}"
+oracle_db_port: "{{ oracle_exporter_instances[0].db_port }}"
+oracle_db_service: "{{ oracle_exporter_instances[0].db_service }}"
+oracle_db_user: "{{ oracle_exporter_instances[0].db_user }}"
+oracle_db_password: "{{ oracle_exporter_instances[0].db_password }}"
+oracle_admin_password: "{{ oracle_exporter_instances[0].admin_password }}"

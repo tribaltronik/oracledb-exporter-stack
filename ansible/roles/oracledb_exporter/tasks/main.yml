@@ -36,13 +36,13 @@
     create_home: no
     state: present
 
-- name: Create exporter directories
+- name: Create shared exporter directories
   file:
     path: "{{ item }}"
     state: directory
-    owner: "{{ exporter_user }}"
-    group: "{{ exporter_group }}"
-    mode: 0750
+    owner: root
+    group: root
+    mode: 0755
   loop:
     - "{{ exporter_home }}"
     - "{{ exporter_config_dir }}"
@@ -70,87 +70,109 @@
     mode: 0755
     remote_src: yes
 
-- name: Deploy default metrics configuration
-  template:
-    src: default-metrics.toml.j2
-    dest: "{{ exporter_config_dir }}/default-metrics.toml"
-    owner: "{{ exporter_user }}"
-    group: "{{ exporter_group }}"
-    mode: 0640
-
-- name: Deploy nohup wrapper script
-  template:
-    src: run_exporter.sh.j2
-    dest: "{{ exporter_bin_dir }}/run_exporter.sh"
-    owner: root
-    group: root
-    mode: 0755
-
-- name: Set environment variables in /etc/profile.d
-  template:
-    src: oracle_exporter.sh.j2
-    dest: /etc/profile.d/oracle_exporter.sh
-    owner: root
-    group: root
-    mode: 0644
-
-- name: Create systemd service file
-  template:
-    src: oracledb_exporter.service.j2
-    dest: /etc/systemd/system/oracledb_exporter.service
-    owner: root
-    group: root
-    mode: 0644
-  when: ansible_service_mgr == "systemd"
-
-- name: Enable and start exporter service
-  systemd:
-    name: oracledb_exporter
-    enabled: yes
-    state: started
-    daemon_reload: yes
-  when: ansible_service_mgr == "systemd"
-
 - name: Install Oracle Instant Client SQL*Plus
   dnf:
     name: "https://download.oracle.com/otn_software/linux/instantclient/{{ oracle_instantclient_dir }}/oracle-instantclient-sqlplus-{{ oracle_instantclient_version }}.el8.x86_64.rpm"
     state: present
     disable_gpg_check: yes
 
-- name: Grant SELECT ANY DICTIONARY to exporter user
+- name: Per-instance directories
+  file:
+    path: "{{ item[1] }}/{{ item[0].name }}"
+    state: directory
+    owner: "{{ exporter_user }}"
+    group: "{{ exporter_group }}"
+    mode: 0750
+  with_nested:
+    - "{{ oracle_exporter_instances }}"
+    - - "{{ exporter_home }}"
+      - "{{ exporter_config_dir }}"
+      - "{{ exporter_log_dir }}"
+
+- name: Deploy per-instance default metrics
+  template:
+    src: default-metrics.toml.j2
+    dest: "{{ exporter_config_dir }}/{{ item.name }}/default-metrics.toml"
+    owner: "{{ exporter_user }}"
+    group: "{{ exporter_group }}"
+    mode: 0640
+  loop: "{{ oracle_exporter_instances }}"
+
+- name: Deploy per-instance environment file
+  template:
+    src: oracle_exporter.sh.j2
+    dest: "{{ exporter_config_dir }}/{{ item.name }}/oracle_exporter.sh"
+    owner: "{{ exporter_user }}"
+    group: "{{ exporter_group }}"
+    mode: 0640
+  loop: "{{ oracle_exporter_instances }}"
+
+- name: Deploy per-instance nohup wrapper script
+  template:
+    src: run_exporter.sh.j2
+    dest: "{{ exporter_bin_dir }}/run_exporter_{{ item.name }}.sh"
+    owner: root
+    group: root
+    mode: 0755
+  loop: "{{ oracle_exporter_instances }}"
+
+- name: Create per-instance systemd service file
+  template:
+    src: oracledb_exporter.service.j2
+    dest: /etc/systemd/system/oracledb_exporter_{{ item.name }}.service
+    owner: root
+    group: root
+    mode: 0644
+  loop: "{{ oracle_exporter_instances }}"
+  when: ansible_service_mgr == "systemd"
+
+- name: Enable and start per-instance systemd service
+  systemd:
+    name: "oracledb_exporter_{{ item.name }}"
+    enabled: yes
+    state: started
+    daemon_reload: yes
+  loop: "{{ oracle_exporter_instances }}"
+  when: ansible_service_mgr == "systemd"
+
+- name: Grant SELECT ANY DICTIONARY per database
   shell: |
-    echo "GRANT SELECT ANY DICTIONARY TO {{ oracle_db_user }};" | \
-    sqlplus -L "system/{{ oracle_admin_password }}@//{{ oracle_db_host }}:{{ oracle_db_port }}/{{ oracle_db_service }}"
+    echo "GRANT SELECT ANY DICTIONARY TO {{ item.db_user }};" | \
+    sqlplus -L "system/{{ item.admin_password }}@//{{ item.db_host }}:{{ item.db_port }}/{{ item.db_service }}"
   register: grant_result
   failed_when: grant_result.rc != 0 and 'ORA-01934' not in grant_result.stderr
   ignore_errors: yes
+  loop: "{{ oracle_exporter_instances }}"
 
-- name: Start exporter via nohup (non-systemd)
+- name: Start per-instance exporter via nohup
   shell: |
-    . /etc/profile.d/oracle_exporter.sh
-    fuser -k {{ exporter_port }}/tcp 2>/dev/null || true
+    . {{ exporter_config_dir }}/{{ item.name }}/oracle_exporter.sh
+    fuser -k {{ item.exporter_port }}/tcp 2>/dev/null || true
     sleep 1
     nohup {{ exporter_bin_dir }}/oracledb_exporter \
-      --default.metrics {{ exporter_config_dir }}/default-metrics.toml \
+      --default.metrics {{ exporter_config_dir }}/{{ item.name }}/default-metrics.toml \
       --log.level error \
-      --web.listen-address {{ exporter_listen_address }} \
-      >> {{ exporter_log_dir }}/exporter.log 2>&1 &
-    echo $! > {{ exporter_pid_file }}
+      --web.listen-address {{ exporter_listen }}:{{ item.exporter_port }} \
+      >> {{ exporter_log_dir }}/{{ item.name }}/exporter.log 2>&1 &
+    echo $! > {{ exporter_pid_dir }}/oracledb_exporter_{{ item.name }}.pid
+  loop: "{{ oracle_exporter_instances }}"
   when: ansible_service_mgr != "systemd"
 
-- name: Wait for exporter to start
+- name: Wait for per-instance exporter to start
   wait_for:
-    port: "{{ exporter_port }}"
-    host: "{{ exporter_listen_address.split(':')[0] }}"
+    port: "{{ item.exporter_port }}"
+    host: "{{ exporter_listen }}"
     delay: 3
     timeout: 30
+  loop: "{{ oracle_exporter_instances }}"
 
-- name: Verify exporter metrics endpoint
+- name: Verify per-instance exporter metrics endpoint
   uri:
-    url: "http://127.0.0.1:{{ exporter_port }}/metrics"
+    url: "http://127.0.0.1:{{ item.exporter_port }}/metrics"
     return_content: yes
   register: metrics_response
   failed_when: "'oracledb_up' not in metrics_response.content"
+  loop: "{{ oracle_exporter_instances }}"
 
 - name: Cleanup downloaded archive
   file:

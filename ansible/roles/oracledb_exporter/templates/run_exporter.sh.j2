@@ -1,17 +1,21 @@
 #!/bin/bash
 
-source /etc/profile.d/oracle_exporter.sh
-
-LOG_FILE="{{ exporter_log_dir }}/exporter.log"
-LISTEN_ADDRESS="{{ exporter_listen_address }}"
-PID_FILE="{{ exporter_pid_file }}"
+INSTANCE="{{ item.name }}"
+CONFIG_DIR="{{ exporter_config_dir }}/$INSTANCE"
+LOG_FILE="{{ exporter_log_dir }}/$INSTANCE/exporter.log"
+LISTEN_ADDRESS="{{ exporter_listen }}:{{ item.exporter_port }}"
+PID_FILE="{{ exporter_pid_dir }}/oracledb_exporter_$INSTANCE.pid"
 BINARY="{{ exporter_bin_dir }}/oracledb_exporter"
+METRICS_FILE="$CONFIG_DIR/default-metrics.toml"
+ENV_FILE="$CONFIG_DIR/oracle_exporter.sh"
 
-echo "Starting oracledb_exporter v{{ oracle_exporter_version }} at $(date)" | tee -a "$LOG_FILE"
+source "$ENV_FILE"
+
+echo "Starting oracledb_exporter v{{ oracle_exporter_version }} ($INSTANCE) at $(date)" | tee -a "$LOG_FILE"
 echo "DB_CONNECT_STRING=${DB_CONNECT_STRING}" | tee -a "$LOG_FILE"
 
 nohup $BINARY \
-    --default.metrics {{ exporter_config_dir }}/default-metrics.toml \
+    --default.metrics "$METRICS_FILE" \
     --log.level error \
     --web.listen-address "$LISTEN_ADDRESS" \
     >> "$LOG_FILE" 2>&1 &
@@ -22,18 +26,19 @@ echo "PID: $EXPORTER_PID" | tee -a "$LOG_FILE"
 
 sleep 2
 if kill -0 $EXPORTER_PID 2>/dev/null; then
-    echo "Exporter started successfully" | tee -a "$LOG_FILE"
+    echo "Exporter ($INSTANCE) started successfully" | tee -a "$LOG_FILE"
 else
-    echo "Exporter failed to start" | tee -a "$LOG_FILE"
+    echo "Exporter ($INSTANCE) failed to start" | tee -a "$LOG_FILE"
     tail -20 "$LOG_FILE"
     exit 1
 fi
 
 cleanup() {
-    echo "Stopping exporter (PID: $EXPORTER_PID)..." | tee -a "$LOG_FILE"
+    echo "Stopping exporter ($INSTANCE, PID: $EXPORTER_PID)..." | tee -a "$LOG_FILE"
     kill $EXPORTER_PID 2>/dev/null
     wait $EXPORTER_PID
     rm -f "$PID_FILE"
+    echo "Exporter ($INSTANCE) stopped" | tee -a "$LOG_FILE"
 }
 trap cleanup SIGTERM SIGINT
 

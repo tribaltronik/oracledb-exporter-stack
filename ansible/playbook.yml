@@ -5,9 +5,20 @@
   roles:
     - role: oracledb_exporter
       vars:
-        oracle_db_host: oracle-xe
-        oracle_db_port: 1521
-        oracle_db_service: XEPDB1
-        oracle_db_user: oracledb_exporter
-        oracle_db_password: exporter_pass
-        oracle_admin_password: SysPassword1
+        oracle_exporter_instances:
+          - name: xe1
+            db_host: oracle-xe
+            db_port: 1521
+            db_service: XEPDB1
+            db_user: oracledb_exporter
+            db_password: exporter_pass
+            exporter_port: 9161
+            admin_password: SysPassword1
+          - name: xe2
+            db_host: oracle-xe-2
+            db_port: 1521
+            db_service: XEPDB1
+            db_user: oracledb_exporter2
+            db_password: exporter_pass2
+            exporter_port: 9162
+            admin_password: SysPassword2

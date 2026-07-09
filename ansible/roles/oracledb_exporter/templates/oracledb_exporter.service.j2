@@ -1,5 +1,5 @@
 [Unit]
-Description=OracleDB Exporter (Prometheus)
+Description=OracleDB Exporter {{ item.name }} (Prometheus)
 Documentation=https://github.com/oracle/oracle-db-appdev-monitoring
 After=network.target
 
@@ -7,14 +7,14 @@ After=network.target
 Type=simple
 User={{ exporter_user }}
 Group={{ exporter_group }}
-Environment=DB_USERNAME={{ oracle_db_user }}
-Environment=DB_PASSWORD={{ oracle_db_password }}
-Environment=DB_CONNECT_STRING={{ oracle_db_host }}:{{ oracle_db_port }}/{{ oracle_db_service }}
+Environment=DB_USERNAME={{ item.db_user }}
+Environment=DB_PASSWORD={{ item.db_password }}
+Environment=DB_CONNECT_STRING={{ item.db_host }}:{{ item.db_port }}/{{ item.db_service }}
 Environment=NLS_LANG=AMERICAN_AMERICA.AL32UTF8
 ExecStart={{ exporter_bin_dir }}/oracledb_exporter \
-    --default.metrics {{ exporter_config_dir }}/default-metrics.toml \
+    --default.metrics {{ exporter_config_dir }}/{{ item.name }}/default-metrics.toml \
     --log.level error \
-    --web.listen-address {{ exporter_listen_address }}
+    --web.listen-address {{ exporter_listen }}:{{ item.exporter_port }}
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=always
 RestartSec=10

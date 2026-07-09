@@ -24,19 +24,31 @@ logs:
 logs-exporter:
 	docker compose -f $(COMPOSE_FILE) logs -f ubi9-target
 
-test:
-	@echo "Testing exporter metrics endpoint..."
-	@curl -sS http://localhost:9161/metrics | head -50 || echo "FAILED: metrics endpoint not reachable"
+test-xe1:
+	@echo "Testing exporter xe1 metrics endpoint..."
+	@curl -sS http://localhost:9161/metrics | head -30 || echo "FAILED: xe1 metrics endpoint not reachable"
+
+test-xe2:
+	@echo "Testing exporter xe2 metrics endpoint..."
+	@curl -sS http://localhost:9162/metrics | head -30 || echo "FAILED: xe2 metrics endpoint not reachable"
+
+test: test-xe1 test-xe2
 
 test-verbose:
-	@echo "Testing exporter metrics endpoint..."
-	@curl -sS http://localhost:9161/metrics || echo "FAILED: metrics endpoint not reachable"
+	@echo "Testing exporter xe1 metrics endpoint..."
+	@curl -sS http://localhost:9161/metrics || echo "FAILED: xe1 metrics endpoint not reachable"
+	@echo "---"
+	@echo "Testing exporter xe2 metrics endpoint..."
+	@curl -sS http://localhost:9162/metrics || echo "FAILED: xe2 metrics endpoint not reachable"
 
 shell-ubi9:
 	docker compose -f $(COMPOSE_FILE) exec ubi9-target bash
 
 shell-oracle:
 	docker compose -f $(COMPOSE_FILE) exec oracle-xe bash
+
+shell-oracle-2:
+	docker compose -f $(COMPOSE_FILE) exec oracle-xe-2 bash
 
 status:
 	docker compose -f $(COMPOSE_FILE) ps
@@ -48,7 +60,7 @@ clean: down
 ansible-test:
 	@echo "Running Ansible role against UBI9 container..."
 	@unset DOCKER_HOST && \
-	docker compose -f $(COMPOSE_FILE) up -d oracle-xe ubi9-target && \
+	docker compose -f $(COMPOSE_FILE) up -d oracle-xe oracle-xe-2 ubi9-target && \
 	TARGET_IP=$$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ubi9-target) && \
 	echo "Target IP: $$TARGET_IP" && \
 	ANSIBLE_HOST_KEY_CHECKING=False \
@@ -58,14 +70,22 @@ ansible-test:
 	  ansible/playbook.yml
 
 health:
-	@echo "Checking exporter health..."
+	@echo "=== Exporter Health ==="
+	@echo "--- xe1 (9161) ---"
 	@curl -sS http://localhost:9161/ || echo "Not reachable"
 	@echo ""
-	@echo "Checking metrics..."
-	@curl -sS http://localhost:9161/metrics | grep -E "(oracledb_up|process_cpu)" || echo "Metrics not available yet"
+	@curl -sS http://localhost:9161/metrics | grep -E "(oracledb_up|process_cpu)" || echo "Metrics not available"
+	@echo ""
+	@echo "--- xe2 (9162) ---"
+	@curl -sS http://localhost:9162/ || echo "Not reachable"
+	@echo ""
+	@curl -sS http://localhost:9162/metrics | grep -E "(oracledb_up|process_cpu)" || echo "Metrics not available"
 
 info:
 	@echo "=== OracleDB Exporter Stack ==="
-	@echo "Oracle XE:         http://localhost:1521"
+	@echo "Oracle XE (xe1):   localhost:1521"
+	@echo "Oracle XE (xe2):   localhost:1522"
+	@echo "xe1 metrics:       http://localhost:9161/metrics"
+	@echo "xe2 metrics:       http://localhost:9162/metrics"
 	@echo "UBI9 SSH:          ssh root@localhost -p 2222 (password: ansible)"
 	@echo "Provision:         make ansible-test"
